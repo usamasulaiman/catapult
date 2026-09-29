@@ -41,7 +41,11 @@ importers:
 
   packages/core: {}
 
-  packages/harness-claude: {}
+  packages/harness-claude:
+    dependencies:
+      '@catapult/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/harness-pi:
     dependencies:

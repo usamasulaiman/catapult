@@ -39,6 +39,9 @@ export interface StartOpts {
   /** Resume an existing session (id for claude, session file/id for pi). */
   resume?: string;
   model?: string;
+  /** No human present: skip permission prompts. Only safe when the process runs under srt. */
+  unattended?: boolean;
+  systemAppend?: string;
   /** Wraps the harness argv (e.g. with srt). Identity when omitted. */
   wrap?: (argv: string[]) => string[];
   /** Override the harness binary, e.g. for tests. */
