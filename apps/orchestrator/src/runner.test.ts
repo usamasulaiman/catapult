@@ -61,6 +61,15 @@ describe("runJob", () => {
     expect(db.prepare("SELECT status, driver, origin FROM sessions WHERE session_id = 'sess-x'").get()).toMatchObject({ status: "idle", driver: "none", origin: "job" });
   });
 
+  it("keeps the worktree when the agent left changes", async () => {
+    deps.adapters.claude = fakeAdapter((o) => { writeFileSync(join(o.cwd, "out.txt"), "x"); return { reason: "completed", finalText: "" }; });
+    const job = queued();
+    await runJob(deps, job).done;
+    const run = db.prepare("SELECT worktree_path FROM runs WHERE job_id = ?").get(job.id) as any;
+    expect(existsSync(join(run.worktree_path, "out.txt"))).toBe(true);
+    expect(getJob(db, job.id)!.status).toBe("succeeded");
+  });
+
   it("runs the agent inside the worktree, not the main clone", async () => {
     const job = queued();
     await runJob(deps, job).done;

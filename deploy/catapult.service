@@ -1,0 +1,26 @@
+[Unit]
+Description=Catapult orchestrator
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+User=dev
+WorkingDirectory=/opt/catapult
+# Secrets come from Doppler (token provisioned by rock at /etc/rock/doppler.env).
+EnvironmentFile=-/etc/rock/doppler.env
+Environment=CATAPULT_ROOT=/srv/catapult
+Environment=NODE_NO_WARNINGS=1
+ExecStart=/usr/bin/doppler run --project catapult --config prd -- /usr/bin/node apps/orchestrator/src/cli.ts serve
+Restart=always
+RestartSec=3
+# Give running jobs time to be cancelled and their leases released.
+TimeoutStopSec=30
+
+# The orchestrator spawns agents; each is confined by srt, not by this unit.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/srv/catapult /home/dev
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

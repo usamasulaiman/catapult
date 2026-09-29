@@ -1,0 +1,13 @@
+# Continuous SQLite replication. Credentials come from the environment (Doppler).
+# Restore on a fresh host:  litestream restore -config /etc/litestream.yml /srv/catapult/data/catapult.db
+dbs:
+  - path: /srv/catapult/data/catapult.db
+    replicas:
+      - type: s3
+        bucket: ${LITESTREAM_BUCKET}
+        path: catapult
+        endpoint: ${LITESTREAM_ENDPOINT}   # OCI Object Storage S3-compatible endpoint
+        region: ${LITESTREAM_REGION}
+        access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
+        secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
+        force-path-style: true

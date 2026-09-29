@@ -21,10 +21,16 @@ export async function createWorktree(o: {
   return { path, branch: o.branch };
 }
 
-/** Remove the worktree, and the branch too when it has no commits beyond `base`. */
-export async function removeWorktree(repo: string, wt: Worktree, base: string): Promise<void> {
+/**
+ * Remove the worktree only when it holds nothing worth keeping: no uncommitted changes and no
+ * commits beyond `base`. Returns true if removed. A kept worktree is the job's output.
+ */
+export async function removeWorktree(repo: string, wt: Worktree, base: string): Promise<boolean> {
+  const { stdout: dirty } = await git(wt.path, "status", "--porcelain").catch(() => ({ stdout: "?" }));
+  const { stdout: ahead } = await git(repo, "rev-list", "--count", `${base}..${wt.branch}`).catch(() => ({ stdout: "?" }));
+  if (dirty.trim() !== "" || ahead.trim() !== "0") return false;
   await git(repo, "worktree", "remove", "--force", wt.path).catch(() => rm(wt.path, { recursive: true, force: true }));
   await git(repo, "worktree", "prune").catch(() => {});
-  const { stdout } = await git(repo, "rev-list", "--count", `${base}..${wt.branch}`).catch(() => ({ stdout: "0" }));
-  if (stdout.trim() === "0") await git(repo, "branch", "-D", wt.branch).catch(() => {});
+  await git(repo, "branch", "-D", wt.branch).catch(() => {});
+  return true;
 }

@@ -18,10 +18,16 @@ beforeEach(() => {
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 describe("worktree", () => {
+  it("keeps a worktree with uncommitted changes", async () => {
+    const wt = await createWorktree({ repo, root, project: "p", jobId: "j3", branch: "catapult/noop/j3", base: "main" });
+    writeFileSync(join(wt.path, "hello.txt"), "hi");
+    expect(await removeWorktree(repo, wt, "main")).toBe(false);
+    expect(existsSync(join(wt.path, "hello.txt"))).toBe(true);
+  });
   it("creates an isolated worktree and cleans it up with its unused branch", async () => {
     const wt = await createWorktree({ repo, root, project: "p", jobId: "j1", branch: "catapult/noop/j1", base: "main" });
     expect(existsSync(join(wt.path, "a.txt"))).toBe(true);
-    await removeWorktree(repo, wt, "main");
+    expect(await removeWorktree(repo, wt, "main")).toBe(true);
     expect(existsSync(wt.path)).toBe(false);
     expect(git(repo, "branch", "--list", "catapult/*").trim()).toBe("");
   });
