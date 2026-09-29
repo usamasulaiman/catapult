@@ -1,0 +1,15 @@
+{
+  "name": "@catapult/orchestrator",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": { "catapult": "./src/cli.ts" },
+  "dependencies": {
+    "@catapult/core": "workspace:*",
+    "@catapult/sandbox": "workspace:*",
+    "@catapult/harness-pi": "workspace:*",
+    "@catapult/harness-claude": "workspace:*",
+    "hono": "^4.9.0",
+    "@hono/node-server": "^1.19.0"
+  }
+}
