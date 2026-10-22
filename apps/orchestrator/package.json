@@ -13,6 +13,8 @@
     "@catapult/sandbox": "workspace:*",
     "@hono/node-server": "^1.19.0",
     "hono": "^4.9.0",
-    "yaml": "^2.9.1"
+    "yaml": "^2.9.1",
+    "@catapult/worker-pr-babysitter": "workspace:*",
+    "@catapult/worker-groomer": "workspace:*"
   }
 }

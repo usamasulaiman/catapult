@@ -32,6 +32,12 @@ importers:
       '@catapult/sandbox':
         specifier: workspace:*
         version: link:../../packages/sandbox
+      '@catapult/worker-groomer':
+        specifier: workspace:*
+        version: link:../../workers/groomer
+      '@catapult/worker-pr-babysitter':
+        specifier: workspace:*
+        version: link:../../workers/pr-babysitter
       '@hono/node-server':
         specifier: ^1.19.0
         version: 1.19.17(hono@4.13.11)
@@ -61,6 +67,8 @@ importers:
       '@catapult/core':
         specifier: workspace:*
         version: link:../core
+
+  workers/groomer: {}
 
   workers/pr-babysitter:
     dependencies:
