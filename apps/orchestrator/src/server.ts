@@ -8,7 +8,7 @@ import { createApi } from "./api.ts";
 import type { Config } from "./config.ts";
 import { Dispatcher } from "./dispatcher.ts";
 import { pruneEvents } from "./sessions.ts";
-import { builtinWorkers } from "./workers.ts";
+import { builtinWorkers } from "./workers/index.ts";
 
 export function serve(config: Config) {
   mkdirSync(config.dataDir, { recursive: true, mode: 0o750 });

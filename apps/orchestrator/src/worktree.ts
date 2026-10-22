@@ -34,3 +34,24 @@ export async function removeWorktree(repo: string, wt: Worktree, base: string): 
   await git(repo, "branch", "-D", wt.branch).catch(() => {});
   return true;
 }
+
+/** Remove a worktree and its local branch regardless of contents (its commits were pushed). */
+export async function forceRemoveWorktree(repo: string, wt: Worktree): Promise<void> {
+  await git(repo, "worktree", "remove", "--force", wt.path).catch(() => rm(wt.path, { recursive: true, force: true }));
+  await git(repo, "worktree", "prune").catch(() => {});
+  if (wt.branch) await git(repo, "branch", "-D", wt.branch).catch(() => {});
+}
+
+/** Branch checked out in a worktree (empty if detached or missing). */
+export async function currentBranch(path: string): Promise<string> {
+  const { stdout } = await git(path, "rev-parse", "--abbrev-ref", "HEAD").catch(() => ({ stdout: "" }));
+  return stdout.trim() === "HEAD" ? "" : stdout.trim();
+}
+
+export async function headSha(path: string): Promise<string> {
+  return (await git(path, "rev-parse", "HEAD")).stdout.trim();
+}
+
+export async function countCommits(path: string, from: string, to = "HEAD"): Promise<number> {
+  return Number((await git(path, "rev-list", "--count", `${from}..${to}`)).stdout.trim());
+}

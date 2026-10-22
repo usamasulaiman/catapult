@@ -8,8 +8,8 @@ import {
   type Db, type HarnessAdapter, type RunEvent, type RunResult, type StartOpts,
 } from "@catapult/core";
 import { loadConfig } from "./config.ts";
-import { runJob, type RunnerDeps } from "./runner.ts";
-import { builtinWorkers } from "./workers.ts";
+import { runJob, tighten, type RunnerDeps } from "./runner.ts";
+import { builtinWorkers } from "./workers/index.ts";
 
 let dir: string, db: Db, deps: RunnerDeps;
 const seen: StartOpts[] = [];
@@ -120,6 +120,67 @@ describe("runJob", () => {
     release();
     await Promise.all([c, active.done]);
     expect(getJob(db, job.id)!.status).toBe("cancelled");
+  });
+});
+
+describe("worker hooks", () => {
+  it("prepare returning null finishes the job without starting the harness", async () => {
+    deps.workers = { ...builtinWorkers, skip: { name: "skip", prepare: async () => null, prompt: () => "x" } };
+    enqueue(db, { project_id: "p", worker: "skip", tier: "unsandboxed" });
+    const job = lease(db, { owner: "test-owner", leaseMs: 60_000 })!;
+    await runJob(deps, job).done;
+    expect(getJob(db, job.id)!.status).toBe("succeeded");
+    expect(seen).toHaveLength(0);
+  });
+
+  it("evaluate can turn a completed run into needs_input and keeps the worktree", async () => {
+    deps.workers = { ...builtinWorkers, judge: {
+      name: "judge", prompt: () => "x",
+      evaluate: async (e) => (await e.exec("exit 3")).ok ? { status: "succeeded" } : { status: "needs_input", reason: "tests failed" },
+    } };
+    enqueue(db, { project_id: "p", worker: "judge", tier: "unsandboxed" });
+    const job = lease(db, { owner: "test-owner", leaseMs: 60_000 })!;
+    await runJob(deps, job).done;
+    expect(getJob(db, job.id)!.status).toBe("needs_input");
+    const run = db.prepare("SELECT worktree_path, artifact_json FROM runs WHERE job_id = ?").get(job.id) as any;
+    expect(existsSync(run.worktree_path)).toBe(true);
+    expect(JSON.parse(run.artifact_json).summary).toBe("tests failed");
+  });
+
+  it("runs the project's setup command in the worktree before the agent", async () => {
+    db.prepare("UPDATE projects SET config_json = ? WHERE id = 'p'").run(JSON.stringify({ setup: "echo ready > setup.txt" }));
+    deps.adapters.claude = fakeAdapter((o) => {
+      expect(existsSync(join(o.cwd, "setup.txt"))).toBe(true);
+      return { reason: "completed", finalText: "" };
+    });
+    const job = queued();
+    await runJob(deps, job).done;
+    expect(getJob(db, job.id)!.status).toBe("succeeded");
+  });
+
+  it("a failing setup fails the attempt", async () => {
+    db.prepare("UPDATE projects SET config_json = ? WHERE id = 'p'").run(JSON.stringify({ setup: "exit 1" }));
+    const job = queued("unsandboxed", { max_attempts: 1 });
+    await runJob(deps, job).done;
+    expect(getJob(db, job.id)!.error).toMatch(/^setup failed/);
+    expect(seen).toHaveLength(0);
+  });
+
+  it("resume reuses the session's directory and passes the resume ref", async () => {
+    const cwd = join(dir, "existing");
+    execFileSync("mkdir", ["-p", cwd]);
+    enqueue(db, { project_id: "p", worker: "resume", tier: "unsandboxed", input: { harness: "claude", session_id: "s", resume_ref: "s", cwd, prompt: "again" } });
+    const job = lease(db, { owner: "test-owner", leaseMs: 60_000 })!;
+    await runJob(deps, job).done;
+    expect(seen[0]).toMatchObject({ cwd, resume: "s", prompt: "again" });
+    expect(existsSync(cwd)).toBe(true);
+  });
+
+  it("tighten only moves to stricter tiers", () => {
+    expect(tighten("trusted", "untrusted")).toBe("untrusted");
+    expect(tighten("untrusted", "trusted")).toBe("untrusted");
+    expect(tighten("unsandboxed", "trusted")).toBe("trusted");
+    expect(tighten("trusted")).toBe("trusted");
   });
 });
 
