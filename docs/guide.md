@@ -6,9 +6,11 @@ The shared source of truth for three repos: **rock**, **catapult**, and **convey
 
 | Repo | Local path | Plan |
 |---|---|---|
-| rock | `~/Code/personal/linux-hardening` (remote: `rock` on tangled) | `plans/rock.md` |
+| rock | `~/Code/personal/rock` | `plans/rock.md` |
 | catapult | `~/Code/personal/catapult` | `docs/plan.md` |
 | conveyer | `~/Code/personal/conveyer` | `docs/plan.md` |
+
+Each repo is MIT-licensed and pushed to tangled (`origin`) and GitHub (`github`).
 
 **This copy in rock (`plans/00-guide.md`) is canonical.** catapult and conveyer keep a copy at `docs/guide.md`. Edit this one, then run `bin/sync-guide` in rock to refresh the copies. If a repo plan contradicts this guide, the guide wins until it is updated.
 
