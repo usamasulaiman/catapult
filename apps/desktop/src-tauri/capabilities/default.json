@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The bundled UI needs no native APIs; it only makes HTTP requests to the orchestrator.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
