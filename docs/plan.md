@@ -16,8 +16,8 @@ catapult/
         api/            # REST + SSE for UI; /ingest for hooks and webhooks
         scheduler/      # cron rules → jobs
         queue/          # leased jobs table, retries, concurrency
-        sources/        # github, posthog pollers + webhook handlers
-        trackers/       # Tracker interface: linear (primary), github, jira; chosen per project
+        sources/        # github poller + webhook handler
+        trackers/       # Tracker interface; GitHub Issues (D13)
         notify/         # telegram bot: messages, inline approvals, audit
         runner/         # worktree + srt + harness adapter → run
         sessions/       # JSONL watcher/indexer, driver locks
@@ -31,7 +31,6 @@ catapult/
     sandbox/            # srt profile builders per tier
   workers/
     pr-babysitter/      # worker.ts (inputs, stop rules) + prompt.md
-    alert-triage/
     groomer/
   deploy/
     catapult.service     # systemd, User=dev
@@ -150,7 +149,7 @@ setup: pnpm install --frozen-lockfile
 test: pnpm test
 lint: pnpm lint
 harness: claude            # default harness for jobs in this repo
-tracker: linear             # linear | github | jira (per project)
+tracker: github             # GitHub Issues (the only tracker, D13)
 allow_domains: [docs.example.com]
 unsandboxed_ok: false      # true lets trusted jobs run without srt (e.g. needs Docker)
 ```
@@ -167,17 +166,11 @@ Each worker is `workers/<name>/worker.ts` (an input schema, `plan()` that decide
 - **Output:** commits pushed to the PR branch, a reply on each addressed thread saying what changed, and a run summary to Telegram.
 - **Evidence:** the `test` command from `.catapult.yml` must pass before pushing. If it fails, set `needs_input`.
 
-### Alert triage — PostHog (phase 3)
-- **Sources:**
-  - Polling (source of truth): the PostHog API for error-tracking issues and new or spiking exceptions since the cursor.
-  - Webhook (latency): a PostHog webhook destination on `$exception` or on insight alerts, sent to Funnel `/ingest/posthog` with a shared secret.
-- **Dedup:** fingerprint the issue, with one open triage per fingerprint per 24 h.
-- **Tier:** `untrusted` (the payload contains user-controlled strings).
-- **Output:** a report posted to Telegram (summary, likely cause, affected files, proposed fix) and stored as the run artifact. A proposed `open_draft_pr` **action** is attached.
-- **On approval:** a new `trusted` job implements the fix in a worktree and opens a draft PR. The approval is recorded.
+### ~~Alert triage — PostHog~~ (dropped, guide D8/D19)
+No new SaaS. The approvals it would have used are built and used by the groomer.
 
 ### Groomer (phase 4)
-- **Tracker interface:** `Tracker { list(filter), get(id), proposeUpdate(id, patch), comment(id, body) }`. The tracker is a per-project setting (`tracker: linear|github|jira`). Implement Linear first (primary), then GitHub Issues; Jira last.
+- **Tracker interface:** `Tracker { list(filter), get(id), update(id, patch), comment(id, body) }` (writes happen only when an approved action executes). GitHub Issues is the only implementation (D13, D19).
 - **Schedule:** daily, plus on demand.
 - **Output:** for each item that isn't ready, proposed refinements: acceptance criteria, scope, size estimate, open questions, and a "ready" label. Each is an **action**.
 - **On approval:** apply the update to the source. Items marked ready can be enqueued as implementation jobs, which is a separate approval.
@@ -204,10 +197,10 @@ POST /sessions/:harness/:id/takeover|release
 GET  /actions?status=pending           POST /actions/:id/decision
 GET  /stream                           (SSE: session status, job transitions, actions)
 POST /ingest                           (hooks; loopback only)
-POST /ingest/github|posthog            (Funnel; signature verified)
+POST /ingest/github                    (Funnel; signature verified; separate port)
 ```
 
-API routes bind to the Tailscale interface through `tailscale serve`. Only the `/ingest/github` and `/ingest/posthog` routes are exposed through Funnel, using a separate listener port so the two can't be confused.
+API routes bind to the Tailscale interface through `tailscale serve`. Only the `/ingest/github` route is exposed through Funnel, using a separate listener port so the two can't be confused.
 
 ## Catapult's own observability
 
@@ -222,7 +215,6 @@ Check each of these on amd64 **and** arm64:
 - [ ] Both run correctly under `srt` with the untrusted allowlist: `git push` works, arbitrary curl is blocked
 - [ ] Claude Code hook payloads include `session_id` and `transcript_path`; pi extension events cover start, turn end and needs input
 - [ ] Transcript JSONL locations and shapes are recorded, and fixtures saved
-- [ ] PostHog: which of API polling, webhook destinations and insight alerts gives exceptions most reliably
 
 If any check fails, update the guide before F1.
 
@@ -233,8 +225,8 @@ If any check fails, update the guide before F1.
 ### F2 — PR babysitter + Telegram notify (guide phase 2)
 - **Acceptance:** on a real PR with 3 review comments, all are addressed with tests passing, each thread gets a reply, and a Telegram summary arrives. A bot reviewer that keeps commenting is stopped at `max_rounds` with an escalation. Everything still works with webhooks disabled.
 
-### F3 — Approvals + PostHog triage (guide phase 3)
-- **Acceptance:** a PostHog exception triggered on purpose produces one report (a duplicate is suppressed); tapping Approve opens a draft PR; the `approvals` row shows who and when; a second tap is a no-op; an unapproved action expires.
+### F3 — Approvals (guide phase 3)
+- **Acceptance:** an action approved in Telegram or the UI is executed once; the `approvals` row shows who and when; a second tap is a no-op; an unapproved action expires.
 
 ### F4 — Groomer (guide phase 4)
 - **Acceptance:** 5 backlog items produce proposals; only approved proposals are written back; nothing is changed without approval.

@@ -24,11 +24,12 @@ A personal, single-user system on a remote dev box. It runs coding agents (Claud
 
 **In scope**
 - **rock:** hardened, rebuildable VPS provisioning, reachable only over Tailscale
-- **catapult:** the orchestrator (scheduler, durable job queue, event ingest, runner, approvals), the workers (PR babysitter, PostHog alert triage, backlog grooming), and the UI for sessions and per-project schedules and jobs
+- **catapult:** the orchestrator (scheduler, durable job queue, event ingest, runner, approvals), the workers (PR babysitter, backlog grooming, implementing approved tickets), and the UI for sessions and per-project schedules and jobs
 - **conveyer:** personal agent configuration (instructions, skills, hooks), synced across laptop and VPS
 
 **Out of scope (deliberately)**
-- Selling it, multiple tenants, multiple users. It may be open-sourced later, so keep secrets and personal data out of code.
+- Selling it, multiple tenants, multiple users. It is open source (MIT), so keep secrets and personal data out of code.
+- New SaaS dependencies, especially paid or subscription ones (D19). Error-tracking triage (PostHog) and Linear/Jira trackers were dropped for this reason.
 - The consumer app-builder product
 - Agent memory (mem0 or similar). There is a slot for it in conveyer but no design yet.
 - Any access to production data or deploys. The dev box is dev-only.
@@ -94,8 +95,7 @@ flowchart LR
 
   subgraph External["External services"]
     GH["GitHub"]
-    PH["PostHog"]
-    TRK["Linear (primary) / GitHub Issues / Jira"]
+    TRK["GitHub Issues"]
     TGAPI["Telegram Bot API"]
     LLM["LLM APIs"]
     S3["Object storage"]
@@ -141,9 +141,7 @@ flowchart LR
   DOP -->|secrets at start| ORCH
 
   GH -->|webhook| FUN --> ING
-  PH -->|webhook destination| FUN
   SRC -->|poll| GH
-  SRC -->|poll| PH
   SRC -->|poll| TRK
 
   SCH --> Q
@@ -185,7 +183,7 @@ A single mechanism, **`srt`** (Anthropic's sandbox-runtime: bubblewrap on Linux 
 |---|---|---|
 | `interactive` | You at the terminal | Claude Code's native sandbox (optional); pi unsandboxed or `srt` |
 | `trusted` | Unattended job, input written by you (your tickets, your schedules) | Own worktree, `srt` with a broad allowlist |
-| `untrusted` | Unattended job, input written by others (external PR comments, alert payloads, public issues) | Own worktree, `srt` with a narrow allowlist, no secrets in the environment beyond a per-job scoped token |
+| `untrusted` | Unattended job, input written by others (external PR comments, public issues) | Own worktree, `srt` with a narrow allowlist, no secrets in the environment beyond a per-job scoped token |
 | `unsandboxed` | Per-project opt-in for jobs that need Docker (testcontainers and similar) | Own worktree only. Only allowed with `trusted` input. |
 
 Rules:
@@ -200,7 +198,7 @@ Rules:
 | Term | Meaning |
 |---|---|
 | **project** | One repository plus its settings, including which tracker it uses |
-| **tracker** | The backlog source for a project: `linear` (default), `github`, or `jira` |
+| **tracker** | The backlog source for a project: GitHub Issues (`github`) |
 | **schedule** | A cron rule that produces jobs for a project |
 | **job** | A unit of work: worker type, typed input, tier, budget, idempotency key, state |
 | **run** | One attempt at a job. Links to exactly one harness session. |
@@ -222,7 +220,7 @@ Every job has: `max_turns`, `max_wall_seconds`, an optional `max_cost_usd`, and 
 - The dev user cannot reach the cloud metadata service (169.254.169.254), so an agent can't read user-data or instance credentials.
 - GitHub access through a GitHub App (or fine-grained PAT) limited to catapult's repos. Contents, PR and issues write; no admin; branch protection on `main`.
 - **Secrets live in Doppler.** Hosts get a Doppler service token after provisioning (never in cloud-init user-data), and processes read secrets with `doppler run`. Untrusted-tier jobs get only a short-lived scoped token.
-- The webhook endpoint verifies signatures (GitHub HMAC, PostHog shared secret) and rate-limits.
+- The webhook endpoint verifies signatures (GitHub HMAC) and rate-limits.
 - The Telegram bot accepts updates only from allowlisted user ids.
 - No production credentials exist on the dev host.
 
@@ -251,8 +249,8 @@ Defaults, not dogma. Change them with a note in §11.
 | 0 | cloud-init baseline, Tailscale-only access, sandbox prerequisites, roles | Minimal global `AGENTS.md`, install script | Spike: harness resume, hooks, srt+pi on arm64 | Fresh OCI VM to working `claude` and `pi` in herdr in under 15 min; a spike report is written |
 | 1 | Tailscale ACL policy as code | Hooks that POST to ingest | Core: DB, queue, runner, session index, CLI | `catapult run` launches a sandboxed job; `claude --resume` of the job's session works |
 | 2 | — | — | PR babysitter + Telegram notifications | A real PR's review comments are addressed within the round limit, with no loops |
-| 3 | — | — | Approvals + PostHog triage | A PostHog error produces a Telegram report; approving it opens a draft PR; the approval is recorded |
-| 4 | — | Shared skills | Groomer (Linear first, then GitHub and Jira) | Backlog items are refined and applied only after approval |
+| 3 | — | — | Approvals | An action approved in Telegram or the UI is executed once; the approval records who and when; a second tap is a no-op; an unapproved action expires |
+| 4 | — | Shared skills | Groomer (GitHub Issues) + implement | Backlog items are refined and applied only after approval; an approved ready item becomes a draft PR |
 | 5 | — | — | UI: read-only threads + projects/schedules | You can see every session (interactive and headless) and every job from your phone |
 | 6 | — | Memory slot (mem0) | UI: steer/approve/cancel, Tauri app | Steer a UI-started session, then take it over in the CLI |
 
@@ -269,17 +267,18 @@ Defaults, not dogma. Change them with a note in §11.
 | D5 | Tailscale, not raw WireGuard | ACLs, SSH, mobile apps and Funnel/Serve for free |
 | D6 | cloud-init, no custom images | Provider-agnostic, versioned, re-runnable |
 | D7 | Telegram first for approvals and notifications | Solo use; no workspace setup; long polling needs no inbound port |
-| D8 | PostHog for observability input | The user's stack |
+| D8 | ~~PostHog for observability input~~ Dropped | No new SaaS (D19) |
 | D9 | Babysitter `max_rounds` per project, default 5 | Prevents bot-to-bot review loops |
-| D10 | Observability output is triage + summary + proposed fix; code changes only after approval | Most alerts are noise; keeps review load down |
+| D10 | ~~Observability triage output~~ Dropped with D8 | — |
 | D11 | Harness JSONL is canonical; SQLite is operational only | Avoids two diverging sources of truth |
 | D12 | Memory deferred | Build it once real retrieval gaps are known |
-| D13 | Linear is the primary tracker; GitHub Issues and Jira secondary; chosen per project | The user's workflow; one `Tracker` interface keeps workers tracker-agnostic |
+| D13 | GitHub Issues is the only tracker; the `Tracker` interface stays so another can be added | No SaaS beyond the code host (D19) |
 | D14 | Doppler for secrets; never in user-data | User-data is readable through the metadata service |
 | D15 | OCI is the primary dev host; Hetzner is preview-only | Free arm64 capacity for agents; previews need public HTTPS, which the dev host must not have |
 | D16 | Repo names: rock (provisioning), catapult (orchestrator), conveyer (agent config) | — |
 | D17 | SSH restricted by firewall, not by `ListenAddress` | Ubuntu 24.04 socket-activates sshd, and binding to the Tailscale IP races tailscaled at boot |
 | D18 | Harness CLIs over JSON stdio, not SDKs | srt wraps the real process; one driver shape for both harnesses |
+| D19 | No new SaaS dependencies, especially paid or subscription ones | Keeps the system cheap and self-hostable. Existing free-tier services (GitHub, Telegram, Tailscale, Doppler, object storage for Litestream) stay |
 
 ## 12. Open questions
 
