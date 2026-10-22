@@ -6,6 +6,7 @@ import {
 import { mapClaudeEvent, resultReason } from "./events.ts";
 
 export { claudeTranscriptPath, mapClaudeEvent, resultReason } from "./events.ts";
+export { parseClaudeTranscript } from "./transcript.ts";
 
 const KILL_GRACE_MS = 3000;
 

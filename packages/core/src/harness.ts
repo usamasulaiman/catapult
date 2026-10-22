@@ -52,3 +52,12 @@ export interface HarnessAdapter {
   name: HarnessName;
   start(opts: StartOpts): RunHandle;
 }
+
+/** One transcript entry as the UI shows it. Parsed from harness JSONL on demand, never stored. */
+export interface NormalizedMessage {
+  id: string;
+  role: "user" | "assistant" | "tool";
+  text: string;
+  tool?: { name: string; isError?: boolean };
+  ts?: string;
+}

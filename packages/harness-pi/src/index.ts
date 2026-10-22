@@ -6,6 +6,7 @@ import {
 import { DIALOG_METHODS, mapPiEvent } from "./events.ts";
 
 export { mapPiEvent } from "./events.ts";
+export { parsePiTranscript } from "./transcript.ts";
 
 const KILL_GRACE_MS = 3000;
 
