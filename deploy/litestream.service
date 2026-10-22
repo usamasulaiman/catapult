@@ -1,0 +1,15 @@
+[Unit]
+Description=Litestream replication for catapult
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=dev
+# Bucket credentials come from Doppler, like the orchestrator's secrets.
+EnvironmentFile=-/etc/rock/doppler.env
+ExecStart=/usr/bin/doppler run --project catapult --config prd -- /usr/bin/litestream replicate -config /etc/litestream.yml
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
