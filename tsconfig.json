@@ -12,6 +12,6 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["packages/*/src", "apps/*/src", "workers/*/src", "**/*.test.ts"],
+  "include": ["packages/*/src", "apps/orchestrator/src", "workers/*/src", "packages/**/*.test.ts", "apps/orchestrator/**/*.test.ts", "workers/**/*.test.ts"],
   "exclude": ["node_modules"]
 }

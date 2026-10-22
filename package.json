@@ -3,10 +3,13 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.15.0",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && pnpm --filter @catapult/ui typecheck",
+    "build": "pnpm --filter @catapult/ui build"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
