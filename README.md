@@ -48,3 +48,7 @@ Per project in the DB (`catapult project set <id> <key> <json>` or the UI): `pr_
 Desktop: `pnpm --filter @catapult/desktop build` (needs Rust), then set the server URL in Settings.
 
 Before committing, enable the secret scan once per clone: `git config core.hooksPath .githooks` (needs [gitleaks](https://github.com/gitleaks/gitleaks)).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
